@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: logging-elasticsearch-appu-defaults
+  labels:
+    group: logging-elasticsearch-appu
+objects:
+
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: logging-elasticsearch-appu
+    labels:
+      group: logging-elasticsearch-appu
+
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: logging-elasticsearch-appu
+    labels:
+      group: logging-elasticsearch-appu
+  spec:
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      type: Git
+      git:
+        uri: ${SOURCE_URI}
+        ref: ${SOURCE_REF}
+      contextDir: image
+    strategy:
+      type: Docker
+      dockerStrategy:
+        forcePull: false
+        from:
+          kind: DockerImage
+          name: ${IMAGE_FROM}:${IMAGE_TAG}
+    output:
+      to:
+        kind: ImageStreamTag
+        name: logging-elasticsearch-appu:${IMAGE_TAG}
+    triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChange: {}
+
+parameters:
+- description: Git repository URI
+  name: SOURCE_URI
+  required: true
+- description: Git repository reference
+  name: SOURCE_REF
+  value: master
+- description: Upstream image prefix
+  name: IMAGE_FROM
+  required: true
+- description: Upstream image version
+  name: IMAGE_TAG
+  required: true
+
+# vim: set sw=2 sts=2 et :

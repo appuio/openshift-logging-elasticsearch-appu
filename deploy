@@ -1,0 +1,67 @@
+#!/bin/bash
+
+set -e -u -o pipefail
+
+run_oc() {
+  oc --namespace=logging "$@"
+}
+
+echo 'Retrieving logging-kibana image name' >&2
+kibana_image=$(
+  run_oc -o json export deploymentconfig logging-kibana | \
+  jq -r '.spec.template.spec.containers[0].image | @text'
+  )
+
+: "${image_from:="${kibana_image%-kibana:*}-elasticsearch"}"
+: "${image_tag:="${kibana_image#*:}"}"
+
+{
+  echo
+  echo "Source image: ${image_from}"
+  echo "Image tag: ${image_tag}"
+  echo
+} >&2
+
+: "${source_uri:=https://github.com/appuio/openshift-logging-elasticsearch-appu}"
+
+# Replacing everything isn't optimal, but the alternative is to write
+# significant logic to update existing objects
+run_oc process -o json -f template/basics.yaml \
+  SOURCE_URI="${source_uri}" \
+  IMAGE_FROM="${image_from}" \
+  IMAGE_TAG="${image_tag}" | \
+run_oc replace --force -f -
+
+run_oc delete builds -l group=logging-elasticsearch-appu
+
+run_oc start-build --follow --wait logging-elasticsearch-appu
+
+patch=$(
+  jq --null-input -r \
+    --arg image_name "172.30.1.1:5000/logging/logging-elasticsearch-appu:${image_tag}" \
+    '{
+    "spec": {
+      "template": {
+        "spec": {
+          "containers": [{
+            "name": "elasticsearch",
+            "image": $image_name
+          }]
+        }
+      }
+    }
+  } | @json'
+  )
+
+run_oc get deploymentconfig --selector logging-infra=elasticsearch -o name | \
+while read name _; do
+  run_oc scale "$name" --replicas=0
+  run_oc patch "$name" -p "$patch"
+  run_oc rollout latest "$name"
+  run_oc deploy --follow "$name"
+  run_oc scale "$name" --replicas=1
+done
+
+echo SUCCESS >&2
+
+# vim: set sw=2 sts=2 et :
