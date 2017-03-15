@@ -11,6 +11,7 @@ RUN \
   { \
     echo; \
     echo 'sg_role_monitoring:'; \
+    echo '  indices: {}'; \
     echo '  cluster:'; \
     echo '    - cluster:monitor/health'; \
     echo '    - cluster:monitor/nodes/info'; \
