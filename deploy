@@ -38,19 +38,22 @@ run_oc start-build --follow --wait logging-elasticsearch-appu
 
 patch=$(
   jq --null-input -r \
-    --arg image_name "172.30.1.1:5000/logging/logging-elasticsearch-appu:${image_tag}" \
+    --arg image_name "logging-elasticsearch-appu:${image_tag}" \
     '{
-    "spec": {
-      "template": {
-        "spec": {
-          "containers": [{
-            "name": "elasticsearch",
-            "image": $image_name
-          }]
-        }
+      "spec": {
+        "triggers": [{
+          "type": "ImageChange",
+          "imageChangeParams": {
+            "automatic": false,
+            "containerNames": ["elasticsearch"],
+            "from": {
+              "kind": "ImageStreamTag",
+              "name": $image_name
+            }
+          }
+        }]
       }
-    }
-  } | @json'
+    } | @json'
   )
 
 run_oc get deploymentconfig --selector logging-infra=elasticsearch -o name | \
